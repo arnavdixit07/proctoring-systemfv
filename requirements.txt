@@ -1,0 +1,5 @@
+flask>=3.0
+flask-socketio>=5.3
+mediapipe>=0.10
+opencv-python>=4.9
+numpy>=1.26
