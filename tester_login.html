@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proctor Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0a;
+    color: #d8d8d8;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header {
+    background: #111;
+    border-bottom: 1px solid #1e1e1e;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  header h1 { font-size: 1rem; font-weight: 600; color: #fff; }
+  header .meta { font-size: 0.76rem; color: #555; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .badge.active  { background: #1a3a1a; color: #5dc85d; }
+  .badge.flagged { background: #3a1010; color: #e05050; }
+
+  /* ── layout ── */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 0;
+    height: calc(100vh - 49px);
+  }
+
+  /* ── grid of testee tiles ── */
+  #grid {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    align-content: start;
+    overflow-y: auto;
+  }
+
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #333;
+    padding-top: 80px;
+    font-size: 0.9rem;
+  }
+
+  /* testee tile */
+  .tile {
+    background: #141414;
+    border: 1px solid #222;
+    border-radius: 7px;
+    overflow: hidden;
+    transition: border-color .2s;
+    position: relative;
+  }
+  .tile.flagged { border-color: #7a1515; }
+
+  .tile-video {
+    position: relative;
+    aspect-ratio: 4/3;
+    background: #0a0a0a;
+    overflow: hidden;
+  }
+  .tile-video img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scaleX(-1);
+  }
+  .tile-video .no-feed {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    font-size: 0.78rem;
+  }
+
+  /* flag overlay on tile */
+  .tile-flag-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(100,0,0,.3);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #ff5050;
+    letter-spacing: .05em;
+    pointer-events: none;
+  }
+  .tile.flagged .tile-flag-overlay { display: flex; }
+
+  .tile-footer {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #1e1e1e;
+  }
+  .tile-name { font-size: 0.82rem; font-weight: 500; color: #ccc; }
+  .tile-meta { font-size: 0.72rem; color: #555; }
+  .tile-moves { font-size: 0.76rem; color: #4db870; font-weight: 600; }
+  .tile-phase { font-size: 0.68rem; color: #666; text-transform: uppercase; letter-spacing: .04em; }
+
+  /* ── alert sidebar ── */
+  #sidebar {
+    border-left: 1px solid #1a1a1a;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #sidebarHead {
+    padding: 12px 16px;
+    border-bottom: 1px solid #1a1a1a;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #888;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #clearBtn {
+    font-size: 0.7rem;
+    color: #555;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  #clearBtn:hover { background: #1e1e1e; color: #888; }
+
+  #alertList {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .alert-item {
+    background: #181818;
+    border: 1px solid #2a2a2a;
+    border-left: 3px solid #e05050;
+    border-radius: 5px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    animation: slideIn .2s ease;
+  }
+  .alert-item.multi { border-left-color: #e0a020; }
+  .alert-item.autoframe { border-left-color: #2080e0; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(10px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .alert-name { font-size: 0.8rem; font-weight: 600; color: #ddd; margin-bottom: 3px; }
+  .alert-detail { font-size: 0.72rem; color: #777; }
+  .alert-ts { font-size: 0.66rem; color: #444; margin-top: 4px; }
+
+  .no-alerts { text-align: center; color: #333; padding: 40px 16px; font-size: 0.82rem; }
+
+  /* scrollbars */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>
+    Proctor Dashboard
+    <span class="badge active" id="activeCount">0 active</span>
+    <span class="badge flagged" id="flagCount">0 flagged</span>
+  </h1>
+  <span class="meta" id="connMeta">connecting…</span>
+</header>
+
+<main>
+  <div id="grid">
+    <div class="empty-state" id="emptyState">No testees connected yet.</div>
+  </div>
+
+  <div id="sidebar">
+    <div id="sidebarHead">
+      Alerts
+      <button id="clearBtn" onclick="clearAlerts()">Clear</button>
+    </div>
+    <div id="alertList">
+      <div class="no-alerts" id="noAlerts">No alerts yet.</div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+const serverUrl = window.location.protocol + "//" + window.location.hostname + ":5002";
+const socket = io(serverUrl, { reconnection: true });
+
+// state
+const testees = {};   // sid → { name, movement_count, flagged, phase, imgEl }
+
+socket.on("connect", () => {
+  document.getElementById("connMeta").textContent = "connected";
+  socket.emit("tester_join", {});   // always re-join on connect/reconnect
+});
+socket.on("disconnect", () => {
+  document.getElementById("connMeta").textContent = "disconnected";
+});
+
+// Bulk load on join
+socket.on("active_testees", data => {
+  data.testees.forEach(t => addTile(t.sid, t.name, t.movement_count, t.phase, t.flagged));
+});
+
+socket.on("testee_connected", data => {
+  addTile(data.sid, data.name, 0, "room_check", false);
+});
+
+socket.on("testee_disconnected", data => {
+  removeTile(data.sid);
+});
+
+socket.on("testee_frame", data => {
+  const t = testees[data.sid];
+  if (!t) return;
+  if (t.imgEl) t.imgEl.src = data.image;
+  t.movement_count = data.movement_count;
+  t.phase          = data.phase;
+  updateTileMeta(data.sid, data.movement_count, data.phase, data.flagged);
+});
+
+socket.on("testee_status", data => {
+  if (!testees[data.sid]) return;
+  updateTileMeta(data.sid, testees[data.sid].movement_count, data.phase, testees[data.sid].flagged);
+});
+
+socket.on("alert", data => {
+  const t = testees[data.sid];
+  if (t) { t.flagged = true; updateTileMeta(data.sid, data.movement_count, t.phase, true); }
+  addAlert(data);
+  refreshCounts();
+});
+
+socket.on("alert_cleared", data => {
+  const t = testees[data.sid];
+  if (t) { t.flagged = false; updateTileMeta(data.sid, t.movement_count, t.phase, false); }
+  refreshCounts();
+});
+
+// ── Tile management ──────────────────────────────────────────────────────────
+function addTile(sid, name, moves, phase, flagged) {
+  if (testees[sid]) return;
+
+  const tile = document.createElement("div");
+  tile.className = "tile" + (flagged ? " flagged" : "");
+  tile.id = "tile_" + sid;
+  tile.innerHTML = `
+    <div class="tile-video">
+      <img src="" alt="">
+      <div class="no-feed">Waiting for feed…</div>
+      <div class="tile-flag-overlay">FLAGGED</div>
+    </div>
+    <div class="tile-footer">
+      <div>
+        <div class="tile-name">${escHtml(name)}</div>
+        <div class="tile-phase" id="phase_${sid}">${escHtml(phase)}</div>
+      </div>
+      <div class="tile-moves" id="moves_${sid}">${moves} flags</div>
+    </div>
+  `;
+
+  const imgEl   = tile.querySelector("img");
+  const noFeed  = tile.querySelector(".no-feed");
+  imgEl.onload  = () => { noFeed.style.display = "none"; };
+
+  testees[sid] = { name, movement_count: moves, phase, flagged, tile, imgEl };
+  document.getElementById("grid").appendChild(tile);
+  document.getElementById("emptyState").style.display = "none";
+  refreshCounts();
+}
+
+function removeTile(sid) {
+  const t = testees[sid];
+  if (!t) return;
+  t.tile.remove();
+  delete testees[sid];
+  if (Object.keys(testees).length === 0)
+    document.getElementById("emptyState").style.display = "";
+  refreshCounts();
+}
+
+function updateTileMeta(sid, moves, phase, flagged) {
+  const t = testees[sid];
+  if (!t) return;
+  t.movement_count = moves;
+  t.phase          = phase;
+  t.flagged        = flagged;
+  t.tile.className = "tile" + (flagged ? " flagged" : "");
+  const pEl = document.getElementById("phase_" + sid);
+  const mEl = document.getElementById("moves_" + sid);
+  if (pEl) pEl.textContent = phase;
+  if (mEl) mEl.textContent = moves + " flags";
+  refreshCounts();
+}
+
+function refreshCounts() {
+  const all     = Object.values(testees);
+  const flagged = all.filter(t => t.flagged).length;
+  document.getElementById("activeCount").textContent  = `${all.length} active`;
+  document.getElementById("flagCount").textContent    = `${flagged} flagged`;
+}
+
+// ── Alert sidebar ────────────────────────────────────────────────────────────
+function addAlert(data) {
+  document.getElementById("noAlerts").style.display = "none";
+
+  const el = document.createElement("div");
+  const cls = data.multi_face ? "multi" : data.autoframe ? "autoframe" : "";
+  el.className = "alert-item " + cls;
+
+  let detail = "";
+  if (data.multi_face)   detail = "Multiple faces detected";
+  else if (data.autoframe) detail = "Suspected AutoFrame / Center Stage";
+  else                   detail = `Head turned ${data.direction}  (${data.sustained}s sustained)`;
+
+  el.innerHTML = `
+    <div class="alert-name">${escHtml(data.name)}</div>
+    <div class="alert-detail">${detail} — Movement #${data.movement_count}</div>
+    <div class="alert-ts">${escHtml(data.ts)}</div>
+  `;
+
+  const list = document.getElementById("alertList");
+  list.insertBefore(el, list.firstChild);
+}
+
+function clearAlerts() {
+  const list = document.getElementById("alertList");
+  while (list.firstChild) list.removeChild(list.firstChild);
+  const noA = document.createElement("div");
+  noA.className = "no-alerts";
+  noA.id = "noAlerts";
+  noA.textContent = "No alerts yet.";
+  list.appendChild(noA);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proctoring — {{ name }}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #000;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #videoWrap {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+  }
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scaleX(-1);
+  }
+
+  /* overlay panels */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* top HUD bar */
+  #topBar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 8px 16px;
+    background: rgba(10,10,10,.72);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+    color: #aaa;
+    display: none;
+  }
+  #topBar .movements { color: #6ddc8b; }
+
+  /* progress bar (calib + flag) */
+  #progBar {
+    position: absolute;
+    top: 36px; left: 0; right: 0;
+    height: 6px;
+    background: #222;
+    display: none;
+  }
+  #progFill { height: 100%; background: #00b870; width: 0%; transition: width .1s linear; }
+
+  /* center message card */
+  .msgCard {
+    background: rgba(10,10,10,.82);
+    border-radius: 6px;
+    padding: 28px 36px;
+    text-align: center;
+    max-width: 560px;
+    width: 90%;
+  }
+  .msgCard h2 { font-size: 1.3rem; font-weight: 600; color: #ffdc50; margin-bottom: 12px; }
+  .msgCard p  { font-size: 0.88rem; color: #c0c0c0; line-height: 1.6; margin-bottom: 4px; }
+  .msgCard .hint { color: #79e890; font-size: 0.95rem; margin-top: 14px; }
+  .msgCard .retryMsg { color: #6080ff; font-size: 0.78rem; margin-top: 8px; }
+  .spaceBtn {
+    margin-top: 18px;
+    padding: 10px 32px;
+    background: #1a6ee0;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    pointer-events: all;
+  }
+  .spaceBtn:active { background: #1250a8; }
+
+  /* flag banner */
+  #flagBanner {
+    position: absolute;
+    left: 0; right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(120,0,0,.72);
+    padding: 18px;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ff5050;
+    display: none;
+  }
+
+  /* multi-face banner */
+  #multiFaceBanner {
+    position: absolute;
+    top: 44px; left: 0; right: 0;
+    background: rgba(120,0,0,.8);
+    padding: 10px;
+    text-align: center;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #ff5050;
+    display: none;
+  }
+
+  /* countdown pill (during flagging) */
+  #countdown {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,40,80,.8);
+    color: #60d0ff;
+    font-size: 0.78rem;
+    padding: 5px 14px;
+    border-radius: 20px;
+    display: none;
+  }
+
+  /* autoframe warning */
+  #autoframeWarn {
+    position: absolute;
+    bottom: 10px; left: 0; right: 0;
+    background: rgba(0,60,120,.8);
+    padding: 8px;
+    text-align: center;
+    font-size: 0.76rem;
+    color: #50c8ff;
+    display: none;
+  }
+
+  /* bottom step dots */
+  #stepDots {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    display: none;
+  }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #444;
+  }
+  .dot.done  { background: #00dc64; }
+  .dot.active { background: #ffdc50; }
+
+  /* calib hold timer */
+  #holdTimer {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.76rem;
+    color: #aaa;
+    display: none;
+  }
+  #holdProgBar {
+    position: absolute;
+    bottom: 8px; left: 0; right: 0;
+    height: 12px;
+    background: #222;
+    display: none;
+  }
+  #holdProgFill { height: 100%; background: #00c878; width: 0%; }
+
+  /* flag progress bar */
+  #flagProgBar {
+    position: absolute;
+    top: 36px; left: 0; right: 0;
+    height: 6px;
+    background: #333;
+    display: none;
+  }
+  #flagProgFill { height: 100%; background: #00a8e8; width: 0%; transition: width .1s linear; }
+
+  /* connection status */
+  #connStatus {
+    position: absolute;
+    top: 8px; right: 16px;
+    font-size: 0.7rem;
+    color: #555;
+  }
+  #connStatus.ok { color: #3a3; }
+  #connStatus.err { color: #a33; }
+</style>
+</head>
+<body>
+<div id="videoWrap">
+  <video id="video" autoplay playsinline muted></video>
+
+  <!-- top HUD -->
+  <div id="topBar">
+    <span id="deviationText">Deviation: 0.00</span>
+    <span class="movements" id="movementsText">Movements: 0</span>
+  </div>
+
+  <!-- flag progress bar -->
+  <div id="flagProgBar"><div id="flagProgFill"></div></div>
+
+  <!-- hold progress bar (calib) -->
+  <div id="holdProgBar"><div id="holdProgFill"></div></div>
+
+  <!-- multi-face -->
+  <div id="multiFaceBanner">MULTIPLE FACES DETECTED</div>
+
+  <!-- center overlay content -->
+  <div class="overlay" id="overlayRoom">
+    <div class="msgCard">
+      <h2>ROOM CHECK</h2>
+      <p>Sit centered — full room area must be visible.</p>
+      <p style="margin-top:10px;">Before continuing, disable:</p>
+      <p style="color:#a0c8ff; margin-top:4px;">Windows Studio Effects &nbsp;|&nbsp; Auto Framing</p>
+      <p style="color:#a0c8ff;">Center Stage &nbsp;|&nbsp; Camera Tracking</p>
+      <p class="hint">Press <strong>SPACE</strong> when ready.</p>
+      <button class="spaceBtn" onclick="sendSpace()">Continue</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlayCalibPrompt" style="display:none;">
+    <div class="msgCard">
+      <p id="calibPromptText" style="color:#79e890; font-size:1rem; font-weight:600;"></p>
+      <p class="retryMsg" id="retryMsg"></p>
+      <button class="spaceBtn" onclick="sendSpace()">Continue</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlayCalibHold" style="display:none;">
+    <div class="msgCard">
+      <h2 id="calibInstruction"></h2>
+      <p id="holdStatusText" style="color:#888; margin-top:8px; font-size:0.82rem;"></p>
+    </div>
+  </div>
+
+  <!-- monitoring overlays (hidden until phase=monitoring) -->
+  <div id="flagBanner">Kindly look into the system screen ONLY!</div>
+  <div id="countdown"></div>
+  <div id="autoframeWarn">Suspicious activity — disable AutoFocus / Center Stage!</div>
+
+  <!-- step dots (calib) -->
+  <div id="stepDots">
+    <div class="dot" id="dot0"></div>
+    <div class="dot" id="dot1"></div>
+    <div class="dot" id="dot2"></div>
+  </div>
+
+  <!-- hold timer label -->
+  <div id="holdTimer"></div>
+
+  <div id="connStatus">connecting…</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+const NAME = {{ name | tojson }};
+const FRAME_INTERVAL_MS = 150;   // ~6-7 fps — plenty for detection
+
+const video    = document.getElementById("video");
+const connStat = document.getElementById("connStatus");
+let   stream, canvas, ctx, socket;
+let   currentPhase = "room_check";
+let   calibHoldTime = 4.0;
+
+// ── Camera ──────────────────────────────────────────────────────────────────
+async function startCamera() {
+  stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+  video.srcObject = stream;
+  canvas = document.createElement("canvas");
+  ctx    = canvas.getContext("2d");
+}
+
+// ── Socket ──────────────────────────────────────────────────────────────────
+function initSocket() {
+  // Explicitly target the server so cross-device connections work reliably
+  const serverUrl = window.location.protocol + "//" + window.location.hostname + ":5002";
+  socket = io(serverUrl);
+
+  socket.on("connect", () => {
+    connStat.textContent = "connected";
+    connStat.className   = "ok";
+    socket.emit("testee_join", { name: NAME });
+  });
+
+  socket.on("disconnect", () => {
+    connStat.textContent = "disconnected";
+    connStat.className   = "err";
+  });
+
+  socket.on("phase", data => setPhase(data));
+  socket.on("calib_progress", data => onCalibProgress(data));
+  socket.on("monitor_status", data => onMonitorStatus(data));
+}
+
+// ── Phase rendering ──────────────────────────────────────────────────────────
+function setPhase(data) {
+  currentPhase = data.phase;
+
+  hide("overlayRoom");
+  hide("overlayCalibPrompt");
+  hide("overlayCalibHold");
+  hide("stepDots");
+  hide("holdProgBar");
+  hide("holdTimer");
+  hide("topBar");
+
+  if (data.phase === "room_check") {
+    show("overlayRoom");
+
+  } else if (data.phase === "calib_prompt") {
+    show("overlayCalibPrompt");
+    show("stepDots");
+    document.getElementById("calibPromptText").textContent = data.prompt || "";
+    document.getElementById("retryMsg").textContent        = data.retry_msg || "";
+    setDots(data.step || 0);
+
+  } else if (data.phase === "calib_hold") {
+    show("overlayCalibHold");
+    show("stepDots");
+    show("holdProgBar");
+    show("holdTimer");
+    calibHoldTime = data.hold_time || 4.0;
+    document.getElementById("calibInstruction").textContent = data.instruction || "";
+    document.getElementById("holdTimer").textContent = `Hold… ${calibHoldTime.toFixed(1)}s`;
+    setDots(data.step || 0);
+
+  } else if (data.phase === "monitoring") {
+    show("topBar");
+  }
+}
+
+function onCalibProgress(d) {
+  if (currentPhase !== "calib_hold") return;
+  const frac = Math.min(d.frac || 0, 1.0);
+  document.getElementById("holdProgFill").style.width = (frac * 100) + "%";
+  const remaining = Math.max(calibHoldTime - (d.elapsed || 0), 0).toFixed(1);
+  document.getElementById("holdTimer").textContent =
+    d.no_face ? "No face detected — stay in frame" : `Hold… ${remaining}s`;
+}
+
+function onMonitorStatus(d) {
+  if (currentPhase !== "monitoring") return;
+
+  document.getElementById("deviationText").textContent  = `Deviation: ${(d.deviation||0).toFixed(2)}`;
+  document.getElementById("movementsText").textContent  = `Movements: ${d.movement_count || 0}`;
+
+  // multi-face
+  document.getElementById("multiFaceBanner").style.display = d.multi_face ? "block" : "none";
+
+  // flag banner
+  document.getElementById("flagBanner").style.display = d.flagged ? "block" : "none";
+
+  // countdown bar (pre-flag)
+  if (!d.flagged && d.alert_start) {
+    const sustained   = d.now - d.alert_start;
+    const frac        = Math.min(sustained / d.sustained_secs, 1.0);
+    const remaining   = Math.max(d.sustained_secs - sustained, 0).toFixed(1);
+    show("flagProgBar");
+    document.getElementById("flagProgFill").style.width = (frac * 100) + "%";
+    show("countdown");
+    document.getElementById("countdown").textContent = `Flagging in ${remaining}s`;
+  } else {
+    hide("flagProgBar");
+    hide("countdown");
+    document.getElementById("flagProgFill").style.width = "0%";
+  }
+
+  // autoframe
+  document.getElementById("autoframeWarn").style.display = d.autoframe_warn ? "block" : "none";
+}
+
+// ── Frame sender ─────────────────────────────────────────────────────────────
+function startFrameSending() {
+  setInterval(() => {
+    if (!stream || !socket || !socket.connected) return;
+    if (video.readyState < 2) return;
+
+    canvas.width  = 640;
+    canvas.height = 480;
+    ctx.drawImage(video, 0, 0, 640, 480);
+    const b64 = canvas.toDataURL("image/jpeg", 0.7);
+    socket.emit("frame", { image: b64 });
+  }, FRAME_INTERVAL_MS);
+}
+
+// ── SPACE key ────────────────────────────────────────────────────────────────
+function sendSpace() {
+  if (currentPhase === "room_check" || currentPhase === "calib_prompt") {
+    socket.emit("testee_space", {});
+  }
+}
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") { e.preventDefault(); sendSpace(); }
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function show(id) { document.getElementById(id).style.display = ""; }
+function hide(id) { document.getElementById(id).style.display = "none"; }
+
+function setDots(activeStep) {
+  for (let i = 0; i < 3; i++) {
+    const d = document.getElementById("dot" + i);
+    d.className = "dot" + (i < activeStep ? " done" : i === activeStep ? " active" : "");
+  }
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+(async () => {
+  await startCamera();
+  initSocket();
+  startFrameSending();
+})();
+</script>
+</body>
+</html>
